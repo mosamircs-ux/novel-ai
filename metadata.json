@@ -1,0 +1,6 @@
+{
+  "name": "Novel Weaver AI",
+  "description": "Transform novels into immersive multimedia experiences with AI scene visualizations, character voice acting, and cinematic video playback.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
