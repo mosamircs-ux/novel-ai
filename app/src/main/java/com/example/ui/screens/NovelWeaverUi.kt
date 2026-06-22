@@ -99,7 +99,9 @@ fun translate(key: String, isArabic: Boolean): String {
         "favorites" to "Favorites & Bookmarks",
         "no_favorites_found" to "No favorites saved yet. Tap the star on novels or scenes to build your collection!",
         "favorite_chapters" to "Bookmarked Chapters & Scenes",
-        "favorite_novels" to "Favorite Novels"
+        "favorite_novels" to "Favorite Novels",
+        "characters_sidebar" to "Character Profiles",
+        "no_characters_sidebar" to "No characters identified yet. Try analyzing the story with Gemini!"
     )
     val ar = mapOf(
         "app_title" to "نسيج الروايات الذكي",
@@ -134,7 +136,9 @@ fun translate(key: String, isArabic: Boolean): String {
         "favorites" to "المفضلة والإشارات",
         "no_favorites_found" to "لا يوجد مفضلات حالياً. اضغط على أيقونة النجمة في رواياتك أو مشاهدك لإضافتها!",
         "favorite_chapters" to "الفصول والمشاهد المحفوظة",
-        "favorite_novels" to "الروايات المفضلة"
+        "favorite_novels" to "الروايات المفضلة",
+        "characters_sidebar" to "ملفات الشخصيات الجانبية",
+        "no_characters_sidebar" to "لم يتم تحديد أي شخصيات بعد. جرب تحليل الرواية بواسطة Gemini!"
     )
     return if (isArabic) ar[key] ?: en[key] ?: key else en[key] ?: key
 }
@@ -1238,166 +1242,344 @@ fun NovelDetailScreen(
     val isArabic by viewModel.isArabic.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = translate("actions_header", isArabic), color = Color.White, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp) },
-                navigationIcon = {
-                    IconButton(onClick = onBackToEmpty) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { viewModel.toggleLanguage() }) {
-                        Text(
-                            text = if (isArabic) "English" else "العربية",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                    }
-                    IconButton(onClick = { viewModel.toggleDarkMode() }) {
-                        Icon(
-                            imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = "Toggle Theme",
-                            tint = Color.White
-                        )
-                    }
-                    IconButton(onClick = { viewModel.deleteNovel(novel); onBackToEmpty() }) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDarkMode) Color(0xFF14121E) else Color(0xFF6750A4),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
-            )
-        },
-        containerColor = CinemaDarkBackground
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 32.dp)
-        ) {
-            // Creative Hero Banner
-            item {
-                Card(
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color(0xFF14121E),
+                modifier = Modifier
+                    .width(320.dp)
+                    .fillMaxHeight()
+                    .testTag("character_sidebar_drawer")
+            ) {
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
-                        .height(160.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                        .fillMaxSize()
+                        .padding(16.dp)
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AsyncImage(
-                            model = novel.coverImage ?: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=600",
-                            contentDescription = novel.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                    // Drawer Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = translate("characters_sidebar", isArabic),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = CinemaGoldAccent,
+                            modifier = Modifier.testTag("sidebar_title")
                         )
+                        IconButton(
+                            onClick = { scope.launch { drawerState.close() } },
+                            modifier = Modifier.testTag("close_sidebar_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Sidebar",
+                                tint = Color.White
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (charList.isEmpty()) {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.85f))))
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.Bottom
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = novel.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                letterSpacing = (-0.5).sp
-                            )
-                            Text(
-                                text = if (isArabic) "بقلم ${novel.author}" else "By ${novel.author}",
+                                text = translate("no_characters_sidebar", isArabic),
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFEADDFF)
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .testTag("no_characters_sidebar_text")
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("sidebar_characters_list")
+                        ) {
+                            items(charList) { char ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = CinemaSurface),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color(0xFFCAC4D0).copy(alpha = 0.2f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .testTag("sidebar_character_card_${char.id}")
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = char.imageUrl ?: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120",
+                                                contentDescription = char.name,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.Gray.copy(alpha = 0.3f))
+                                                    .testTag("sidebar_character_avatar_${char.id}")
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = char.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    style = MaterialTheme.typography.bodyLarge
+                                                )
+                                                if (char.aliases.isNotEmpty()) {
+                                                    Text(
+                                                        text = "(${char.aliases})",
+                                                        fontSize = 11.sp,
+                                                        color = Color.LightGray,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+
+                                                // Role Chip
+                                                val roleColor = when (char.role.lowercase()) {
+                                                    "protagonist" -> CinemaGoldAccent
+                                                    "antagonist" -> Color(0xFFE91E63)
+                                                    else -> CinemaTealAccent
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .padding(top = 4.dp)
+                                                        .background(roleColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                        .border(0.5.dp, roleColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = char.role.uppercase(),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = roleColor
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        if (char.personality.isNotEmpty()) {
+                                            Text(
+                                                text = char.personality,
+                                                fontSize = 12.sp,
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        if (char.physicalDescription.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = char.physicalDescription,
+                                                fontSize = 11.sp,
+                                                color = Color.Gray,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-
-            // Quick Operations Buttons Row
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    DashboardActionButton(
-                        icon = Icons.Default.PlayCircle,
-                        label = translate("play_cinema", isArabic),
-                        color = CinemaGoldAccent,
-                        textColor = Color.White,
-                        modifier = Modifier.weight(1f).testTag("cinema_player_tab"),
-                        onClick = onNavigateToCinema
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(text = translate("actions_header", isArabic), color = Color.White, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp) },
+                    navigationIcon = {
+                        IconButton(onClick = onBackToEmpty) {
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { scope.launch { drawerState.open() } },
+                            modifier = Modifier.testTag("toggle_character_sidebar")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.People,
+                                contentDescription = "Character Profiles Sidebar",
+                                tint = CinemaGoldAccent
+                            )
+                        }
+                        TextButton(onClick = { viewModel.toggleLanguage() }) {
+                            Text(
+                                text = if (isArabic) "English" else "العربية",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                        IconButton(onClick = { viewModel.toggleDarkMode() }) {
+                            Icon(
+                                imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = "Toggle Theme",
+                                tint = Color.White
+                            )
+                        }
+                        IconButton(onClick = { viewModel.deleteNovel(novel); onBackToEmpty() }) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (isDarkMode) Color(0xFF14121E) else Color(0xFF6750A4),
+                        titleContentColor = Color.White,
+                        navigationIconContentColor = Color.White,
+                        actionIconContentColor = Color.White
                     )
-                    DashboardActionButton(
-                        icon = Icons.Default.People,
-                        label = translate("char_gallery", isArabic),
-                        color = CinemaCardBackground,
-                        textColor = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f).testTag("characters_tab"),
-                        onClick = onNavigateToCharacters
-                    )
-                    DashboardActionButton(
-                        icon = Icons.Default.GridOn,
-                        label = translate("storyboard", isArabic),
-                        color = CinemaCardBackground,
-                        textColor = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f).testTag("storyboard_tab"),
-                        onClick = onNavigateToStoryboard
-                    )
-                }
-            }
-
-            // Timeline Header
-            item {
-                Text(
-                    text = if (isArabic) "التسلسل الزمني لأحداث الرواية" else "Story Chronology Timeline",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    letterSpacing = (-0.3).sp,
-                    modifier = Modifier.padding(top = 8.dp)
                 )
-            }
-
-            // Event Cards mapped chronologically
-            if (eventList.isEmpty()) {
+            },
+            containerColor = CinemaDarkBackground
+        ) { innerPadding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(bottom = 32.dp)
+            ) {
+                // Creative Hero Banner
                 item {
-                    Box(
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(top = 16.dp)
+                            .height(160.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.cardElevation(2.dp)
                     ) {
-                        Text(text = if (isArabic) "لا توجد مشاهد مستخرجة حالياً." else "No events extracted. Analyze the novel first.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            AsyncImage(
+                                model = novel.coverImage ?: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=600",
+                                contentDescription = novel.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.85f))))
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.Bottom
+                            ) {
+                                Text(
+                                    text = novel.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    letterSpacing = (-0.5).sp
+                                )
+                                Text(
+                                    text = if (isArabic) "بقلم ${novel.author}" else "By ${novel.author}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFEADDFF)
+                                )
+                            }
+                        }
                     }
                 }
-            } else {
-                items(eventList) { ev ->
-                    EventTimelineCard(
-                        event = ev,
-                        characters = charList,
-                        onPlayScene = {
-                            viewModel.setCinemaEventIndex(eventList.indexOf(ev))
-                            onNavigateToCinema()
-                        }
+
+                // Quick Operations Buttons Row
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DashboardActionButton(
+                            icon = Icons.Default.PlayCircle,
+                            label = translate("play_cinema", isArabic),
+                            color = CinemaGoldAccent,
+                            textColor = Color.White,
+                            modifier = Modifier.weight(1f).testTag("cinema_player_tab"),
+                            onClick = onNavigateToCinema
+                        )
+                        DashboardActionButton(
+                            icon = Icons.Default.People,
+                            label = translate("char_gallery", isArabic),
+                            color = CinemaCardBackground,
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f).testTag("characters_tab"),
+                            onClick = onNavigateToCharacters
+                        )
+                        DashboardActionButton(
+                            icon = Icons.Default.GridOn,
+                            label = translate("storyboard", isArabic),
+                            color = CinemaCardBackground,
+                            textColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f).testTag("storyboard_tab"),
+                            onClick = onNavigateToStoryboard
+                        )
+                    }
+                }
+
+                // Timeline Header
+                item {
+                    Text(
+                        text = if (isArabic) "التسلسل الزمني لأحداث الرواية" else "Story Chronology Timeline",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        letterSpacing = (-0.3).sp,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
+                }
+
+                // Event Cards mapped chronologically
+                if (eventList.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = if (isArabic) "لا توجد مشاهد مستخرجة حالياً." else "No events extracted. Analyze the novel first.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                } else {
+                    items(eventList) { ev ->
+                        EventTimelineCard(
+                            event = ev,
+                            characters = charList,
+                            onPlayScene = {
+                                viewModel.setCinemaEventIndex(eventList.indexOf(ev))
+                                onNavigateToCinema()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1623,14 +1805,52 @@ fun CinemaPlayerScreen(
                 label = "ScaleFactor"
             )
  
-            AsyncImage(
-                model = currentEvent.imageUrl ?: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=800",
-                contentDescription = currentEvent.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .scale(scaleAnim)
-            )
+            var showDirectorDialog by remember { mutableStateOf(false) }
+            val isVideoMode = remember { mutableStateOf(true) }
+
+            if (showDirectorDialog) {
+                AiMovieDirectorDialog(
+                    event = currentEvent,
+                    viewModel = viewModel,
+                    onDismiss = { showDirectorDialog = false }
+                )
+            }
+
+            if (isVideoMode.value && currentEvent.videoUrl != null && currentEvent.videoStatus == "ready") {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { ctx ->
+                        android.widget.VideoView(ctx).apply {
+                            setVideoURI(android.net.Uri.parse(currentEvent.videoUrl))
+                            setOnPreparedListener { mp ->
+                                mp.isLooping = true
+                                mp.setVolume(0.3f, 0.3f)
+                                start()
+                            }
+                        }
+                    },
+                    update = { view ->
+                        val tagUrl = view.tag as? String
+                        if (tagUrl != currentEvent.videoUrl) {
+                            view.tag = currentEvent.videoUrl
+                            view.setVideoURI(android.net.Uri.parse(currentEvent.videoUrl))
+                            view.start()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("cinema_player_video")
+                )
+            } else {
+                AsyncImage(
+                    model = currentEvent.imageUrl ?: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=800",
+                    contentDescription = currentEvent.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(scaleAnim)
+                        .testTag("cinema_player_fallback_image")
+                )
+            }
  
             // Cinematic black vignetting
             Box(
@@ -1647,17 +1867,63 @@ fun CinemaPlayerScreen(
                     )
             )
  
-            // Back button
-            IconButton(
-                onClick = onBack,
+            // Top Control Row floating
+            Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .padding(16.dp)
                     .padding(top = 16.dp)
-                    .size(44.dp)
-                    .background(Color.Black.copy(0.5f), CircleShape)
-                    .align(Alignment.TopStart)
+                    .align(Alignment.TopCenter),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(imageVector = Icons.Default.Close, contentDescription = "Close player", tint = Color.White)
+                // Back button
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color.Black.copy(0.5f), CircleShape)
+                        .testTag("close_player")
+                ) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close player", tint = Color.White)
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Movie Mode / Image Mode toggle when video is generated and ready
+                    if (currentEvent.videoUrl != null && currentEvent.videoStatus == "ready") {
+                        IconButton(
+                            onClick = { isVideoMode.value = !isVideoMode.value },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(Color.Black.copy(0.5f), CircleShape)
+                                .testTag("toggle_video_image_mode")
+                        ) {
+                            Icon(
+                                imageVector = if (isVideoMode.value) Icons.Default.Image else Icons.Default.Movie,
+                                contentDescription = "Toggle Mode",
+                                tint = CinemaTealAccent
+                            )
+                        }
+                    }
+
+                    // AI Studio Button
+                    IconButton(
+                        onClick = { showDirectorDialog = true },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(Color.Black.copy(0.5f), CircleShape)
+                            .testTag("open_ai_director_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MovieFilter,
+                            contentDescription = "AI Movie Director Studio",
+                            tint = CinemaGoldAccent
+                        )
+                    }
+                }
             }
  
             // Dialogue Subtitle Box Overlay (Bottom)
@@ -1788,6 +2054,205 @@ fun CinemaPlayerScreen(
                             enabled = eventIndex < events.size - 1
                         ) {
                             Icon(imageVector = Icons.Default.SkipNext, contentDescription = "Next", tint = if (eventIndex < events.size - 1) Color.White else Color.DarkGray)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AiMovieDirectorDialog(
+    event: Event,
+    viewModel: NovelViewModel,
+    onDismiss: () -> Unit
+) {
+    val isArabic by viewModel.isArabic.collectAsState()
+    val videoStates by viewModel.videoGenerationStates.collectAsState()
+    val currentStatus = videoStates[event.id]
+    
+    val statusText = when {
+        event.videoStatus == "ready" -> if (isArabic) "جاهز للعرض" else "AI MOVIE MOUNTED"
+        event.videoStatus == "generating" || currentStatus is NovelViewModel.VideoGenState.Analyzing -> if (isArabic) "جاري توليد مشاهد الممثلين وحركة الكاميرا..." else "GENERATING SCENIC MOVIE VIA GEMINI..."
+        event.videoStatus == "failed" -> if (isArabic) "فشل التوليد - حاول مجدداً" else "GENERATION FAILED"
+        else -> if (isArabic) "غير مبني بعد" else "CINEMATIC NOTION IDLE"
+    }
+
+    val statusColor = when {
+        event.videoStatus == "ready" -> CinemaTealAccent
+        event.videoStatus == "generating" || currentStatus is NovelViewModel.VideoGenState.Analyzing -> CinemaGoldAccent
+        event.videoStatus == "failed" -> Color(0xFFF44336)
+        else -> Color.Gray
+    }
+
+    Dialog(onDismissRequest = { if (event.videoStatus != "generating") onDismiss() }) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF14121E)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .border(1.dp, CinemaGoldAccent.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                .testTag("ai_movie_director_dialog")
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Director Clapper Header Layout
+                Icon(
+                    imageVector = Icons.Default.MovieFilter,
+                    contentDescription = "AI Movie Director",
+                    tint = CinemaGoldAccent,
+                    modifier = Modifier.size(54.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = if (isArabic) "استوديو توليد الأفلام الذكي" else "AI Movie Director Studio",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White
+                )
+                Text(
+                    text = event.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.LightGray,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Status Container
+                Box(
+                    modifier = Modifier
+                        .background(statusColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                        .border(1.dp, statusColor, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = statusText.uppercase(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        color = statusColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // If processing, show beautiful glowing progress circle
+                if (event.videoStatus == "generating" || currentStatus is NovelViewModel.VideoGenState.Analyzing) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        CircularProgressIndicator(color = CinemaGoldAccent)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (isArabic) "يقوم Gemini بتحليل الممثلين، وحبكة المشهد والبيئة المحيطة لتنظيم لقطات سينمائية مبهرة..." else "Gemini is casting actors, setting up atmosphere and drafting prompt parameters...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(0.7f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.testTag("generating_video_placeholder")
+                        )
+                    }
+                } else {
+                    // Script and prompts display
+                    if (event.videoStatus == "ready" && event.videoPrompt != null) {
+                        Column(
+                            horizontalAlignment = Alignment.Start,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isArabic) "🎬 نص المخرج السينمائي (Actors & Environment)" else "🎬 DIRECTOR'S CINEMATIC SCRIPT",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CinemaGoldAccent
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = CinemaSurface),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = event.videoScript ?: "Script setup",
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = if (isArabic) "🤖 موجه التوليد الذكي للفيديو (AI Prompt)" else "🤖 AI TEXT-TO-VIDEO PROMPT",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CinemaTealAccent
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = CinemaSurface),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = event.videoPrompt ?: "Prompt",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(0.8f),
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        // Information explain
+                        Text(
+                            text = if (isArabic) 
+                                "قم بتحويل هذا المشهد إلى لقطة سينمائية متحركة كاملة! سيقوم الذكاء الاصطناعي بتحليل الممثلين (الشخصيات المعنية)، وتحديد ملابسهم وملامحهم، وتصميم حركة الكاميرا والعدسة في بيئة المشهد، ثم تركيب المشهد كفيديو سينمائي فريد وممتع."
+                                else "Convert this book scene into a premium cinematic video! The AI will cast appropriate actors, define outfits, program sweeping dynamic camera moves adapted to the dramatic lighting of the location, and render the complete scene as an AI movie segment.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.LightGray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = if (isArabic) "إغلاق" else "CLOSE", color = Color.White)
+                        }
+
+                        Button(
+                            onClick = { viewModel.generateScenicMovie(event) },
+                            colors = ButtonDefaults.buttonColors(containerColor = CinemaGoldAccent, contentColor = Color.Black),
+                            modifier = Modifier.weight(1.5f).testTag("action_generate_movie"),
+                            enabled = event.videoStatus != "generating"
+                        ) {
+                            Icon(imageVector = Icons.Default.Movie, contentDescription = "Simulate Video", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (event.videoStatus == "ready") {
+                                    if (isArabic) "إعادة توليد" else "REGENERATE"
+                                } else {
+                                    if (isArabic) "توليد فيلم" else "GENERATE VIDEO"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }

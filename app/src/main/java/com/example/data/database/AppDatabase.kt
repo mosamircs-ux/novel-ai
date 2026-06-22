@@ -15,7 +15,7 @@ import com.example.data.model.Dialogue
 
 @Database(
     entities = [Novel::class, Character::class, Event::class, Dialogue::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

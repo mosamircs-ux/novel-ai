@@ -128,6 +128,16 @@ class NovelViewModel(
         data class Error(val message: String) : CompositionStatus
     }
 
+    sealed interface VideoGenState {
+        object Idle : VideoGenState
+        object Analyzing : VideoGenState
+        data class Ready(val url: String, val prompt: String, val script: String, val actors: String) : VideoGenState
+        data class Error(val message: String) : VideoGenState
+    }
+
+    private val _videoGenerationStates = MutableStateFlow<Map<Int, VideoGenState>>(emptyMap())
+    val videoGenerationStates: StateFlow<Map<Int, VideoGenState>> = _videoGenerationStates.asStateFlow()
+
     init {
         // Seed the starter classic novel if database is empty on start-up
         viewModelScope.launch {
@@ -353,6 +363,58 @@ class NovelViewModel(
             _compositionStatus.value = CompositionStatus.SyncingAudio
             delay(2000)
             _compositionStatus.value = CompositionStatus.Ready("/assets/movie_$novelId.mp4")
+        }
+    }
+
+    fun generateScenicMovie(event: Event) {
+        viewModelScope.launch {
+            val eventId = event.id
+            val currentMap = _videoGenerationStates.value.toMutableMap()
+            currentMap[eventId] = VideoGenState.Analyzing
+            _videoGenerationStates.value = currentMap
+
+            repository.updateEvent(event.copy(videoStatus = "generating"))
+
+            try {
+                val characters = currentCharacters.value
+                val result = geminiService.generateSceneMovieDirection(
+                    sceneTitle = event.title,
+                    sceneDescription = event.description,
+                    location = event.location,
+                    atmosphere = event.atmosphere,
+                    emotionalTone = event.emotionalTone,
+                    castList = characters
+                )
+
+                if (result != null) {
+                    val updatedEvent = event.copy(
+                        videoUrl = result.recommendedStockVideoUrl,
+                        videoStatus = "ready",
+                        videoPrompt = result.videoPrompt,
+                        videoScript = result.environmentCamera + "\n\n" + result.actorsCast
+                    )
+                    repository.updateEvent(updatedEvent)
+
+                    val updatedMap = _videoGenerationStates.value.toMutableMap()
+                    updatedMap[eventId] = VideoGenState.Ready(
+                        url = result.recommendedStockVideoUrl,
+                        prompt = result.videoPrompt,
+                        script = result.environmentCamera,
+                        actors = result.actorsCast
+                    )
+                    _videoGenerationStates.value = updatedMap
+                } else {
+                    repository.updateEvent(event.copy(videoStatus = "failed"))
+                    val updatedMap = _videoGenerationStates.value.toMutableMap()
+                    updatedMap[eventId] = VideoGenState.Error("Gemini API returned an empty or invalid cinematic payload.")
+                    _videoGenerationStates.value = updatedMap
+                }
+            } catch (e: Exception) {
+                repository.updateEvent(event.copy(videoStatus = "failed"))
+                val updatedMap = _videoGenerationStates.value.toMutableMap()
+                updatedMap[eventId] = VideoGenState.Error(e.message ?: "Unknown error occurred.")
+                _videoGenerationStates.value = updatedMap
+            }
         }
     }
 

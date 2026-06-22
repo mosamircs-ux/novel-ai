@@ -68,7 +68,11 @@ data class Event(
     val chapter: Int,
     val sequence: Int,
     val imageUrl: String? = null,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val videoUrl: String? = null,
+    val videoStatus: String = "idle", // "idle", "generating", "ready", "failed"
+    val videoPrompt: String? = null,
+    val videoScript: String? = null
 )
 
 @Entity(

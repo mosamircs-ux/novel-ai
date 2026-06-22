@@ -216,7 +216,120 @@ class GeminiService {
 
         return ExtractedNovelContent(charactersList, eventsList, dialoguesList)
     }
+
+    suspend fun generateSceneMovieDirection(
+        sceneTitle: String,
+        sceneDescription: String,
+        location: String,
+        atmosphere: String,
+        emotionalTone: String,
+        castList: List<Character>
+    ): SceneMovieDirection? = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || apiKey == "GEMINI_API_KEY") {
+            Log.e("GeminiService", "API Key is missing or placeholder!")
+            return@withContext null
+        }
+
+        val castNamesAndDescriptions = castList.joinToString("\n") { 
+            "- ${it.name} (${it.role}): ${it.personality}. Physical properties: ${it.physicalDescription}" 
+        }
+
+        val prompt = System.currentTimeMillis().let {
+            """
+            You are a highly acclaimed cinematic director and AI video generator. 
+            Your task is to analyze a book scene and output detailed director prompt instructions to generate a breathtaking 3D-cinematic movie video showing the actors and setting environment.
+            
+            Scene Details:
+            - Title: $sceneTitle
+            - Plot/Action: $sceneDescription
+            - Location: $location
+            - Atmosphere: $atmosphere
+            - Emotional Tone: $emotionalTone
+            
+            Cast Available for this Story:
+            $castNamesAndDescriptions
+            
+            Generate:
+            1. Actors & Drama Details (Which actors are active in this scene, their clothes, their precise interactions, emotions, and poses).
+            2. Environment, Lighting & Camera Motion (e.g., 'A dramatic low-angle sweeping shot of...', lighting style, weather, lens flare).
+            3. A premium 'AI Video Generator Prompt' (Sora, Runway Gen-3, or Kling style text string). It must be ultra-descriptive, starting with an aspect ratio or medium like 'A cinematic 8k movie shot of...'.
+            4. Genre/Tone category: Select one category that fits the visual tone of this video best from: "mystery", "peaceful", "action", "epic", "cosmic", "rainy", "drama".
+            
+            Return the response STRICTLY as a valid JSON object matching this schema exactly:
+            {
+              "actorsCast": "Actors and clothing details here...",
+              "environmentCamera": "Camera motion, lighting and location setup details here...",
+              "videoPrompt": "A professional AI Video Generator text prompt...",
+              "genreTone": "mystery"
+            }
+            """.trimIndent()
+        }
+
+        val requestJson = JSONObject().apply {
+            put("contents", JSONArray().put(
+                JSONObject().put("parts", JSONArray().put(
+                    JSONObject().put("text", prompt)
+                ))
+            ))
+            put("generationConfig", JSONObject().apply {
+                put("responseMimeType", "application/json")
+                put("temperature", 0.7)
+            })
+        }
+
+        val requestBody = requestJson.toString().toRequestBody(JSON_MEDIA_TYPE)
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody)
+            .build()
+
+        try {
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e("GeminiService", "Failed to get scene movie directions: response ${response.code}")
+                return@withContext null
+            }
+
+            val bodyText = response.body?.string() ?: return@withContext null
+            val jsonResponse = JSONObject(bodyText)
+            val candidates = jsonResponse.getJSONArray("candidates")
+            val content = candidates.getJSONObject(0).getJSONObject("content")
+            val parts = content.getJSONArray("parts")
+            val rawResponseText = parts.getJSONObject(0).getString("text")
+
+            val obj = JSONObject(rawResponseText)
+            val actors = obj.optString("actorsCast", "Actors active in scene.")
+            val env = obj.optString("environmentCamera", "Cinematography instructions.")
+            val aiPrompt = obj.optString("videoPrompt", "Cinematic AI prompt.")
+            val tone = obj.optString("genreTone", "mystery")
+
+            val videoUrl = when(tone.lowercase()) {
+                "mystery" -> "https://assets.mixkit.co/videos/preview/mixkit-soft-mist-forest-during-early-morning-42416-large.mp4"
+                "peaceful" -> "https://assets.mixkit.co/videos/preview/mixkit-starry-night-sky-over-a-silent-lake-40989-large.mp4"
+                "action" -> "https://assets.mixkit.co/videos/preview/mixkit-rain-hitting-the-windshield-of-a-car-at-night-42284-large.mp4"
+                "epic" -> "https://assets.mixkit.co/videos/preview/mixkit-sun-rays-piercing-through-clouds-over-mountains-42280-large.mp4"
+                "cosmic" -> "https://assets.mixkit.co/videos/preview/mixkit-flying-through-a-futuristic-digital-tunnel-43015-large.mp4"
+                "rainy" -> "https://assets.mixkit.co/videos/preview/mixkit-rain-drops-on-window-pane-42289-large.mp4"
+                else -> "https://assets.mixkit.co/videos/preview/mixkit-curled-pages-of-a-book-turning-slowly-41718-large.mp4" // drama
+            }
+
+            SceneMovieDirection(actors, env, aiPrompt, videoUrl)
+        } catch(e: Exception) {
+            Log.e("GeminiService", "Error generating scene movie check: ${e.message}", e)
+            null
+        }
+    }
 }
+
+data class SceneMovieDirection(
+    val actorsCast: String,
+    val environmentCamera: String,
+    val videoPrompt: String,
+    val recommendedStockVideoUrl: String
+)
 
 data class ExtractedNovelContent(
     val characters: List<ExtractedCharacter>,
