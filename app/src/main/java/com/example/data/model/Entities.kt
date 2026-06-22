@@ -15,6 +15,7 @@ data class Novel(
     val status: String = "pending", // "pending", "processing", "analyzed", "failed"
     val movieUrl: String? = null,
     val movieStatus: String? = "idle", // "idle", "processing", "ready", "failed"
+    val isFavorite: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -66,7 +67,8 @@ data class Event(
     val atmosphere: String,
     val chapter: Int,
     val sequence: Int,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val isFavorite: Boolean = false
 )
 
 @Entity(

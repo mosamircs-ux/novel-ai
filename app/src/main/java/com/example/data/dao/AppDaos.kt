@@ -18,6 +18,9 @@ interface NovelDao {
     @Query("SELECT * FROM novels WHERE id = :id LIMIT 1")
     fun getNovelByIdFlow(id: Int): Flow<Novel?>
 
+    @Query("SELECT * FROM novels WHERE isFavorite = 1 ORDER BY createdAt DESC")
+    fun getFavoriteNovels(): Flow<List<Novel>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNovel(novel: Novel): Long
 
@@ -56,6 +59,12 @@ interface CharacterDao {
 interface EventDao {
     @Query("SELECT * FROM events WHERE novelId = :novelId ORDER BY chapter ASC, sequence ASC")
     fun getEventsForNovel(novelId: Int): Flow<List<Event>>
+
+    @Query("SELECT * FROM events WHERE isFavorite = 1 ORDER BY chapter ASC, sequence ASC")
+    fun getAllFavoriteEvents(): Flow<List<Event>>
+
+    @Query("SELECT * FROM events WHERE novelId = :novelId AND isFavorite = 1 ORDER BY chapter ASC, sequence ASC")
+    fun getFavoriteEventsForNovel(novelId: Int): Flow<List<Event>>
 
     @Query("SELECT * FROM events WHERE novelId = :novelId ORDER BY chapter ASC, sequence ASC")
     suspend fun getEventsForNovelList(novelId: Int): List<Event>

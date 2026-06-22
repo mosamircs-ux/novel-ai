@@ -53,6 +53,14 @@ class NovelViewModel(
     val novels: StateFlow<List<Novel>> = repository.allNovels
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // List of favorite novels (reactive DB)
+    val favoriteNovels: StateFlow<List<Novel>> = repository.favoriteNovels
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // List of all bookmarked / favorite events/chapters across novels
+    val favoriteEvents: StateFlow<List<Event>> = repository.getAllFavoriteEvents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // Active Selected Novel
     private val _selectedNovelId = MutableStateFlow<Int?>(null)
     val selectedNovelId: StateFlow<Int?> = _selectedNovelId.asStateFlow()
@@ -354,6 +362,30 @@ class NovelViewModel(
             if (_selectedNovelId.value == novel.id) {
                 _selectedNovelId.value = null
             }
+        }
+    }
+
+    fun toggleNovelFavorite(novelId: Int) {
+        viewModelScope.launch {
+            repository.toggleNovelFavorite(novelId)
+        }
+    }
+
+    fun toggleEventFavorite(eventId: Int) {
+        viewModelScope.launch {
+            repository.toggleEventFavorite(eventId)
+        }
+    }
+
+    fun selectNovelAndSetCinemaEvent(novelId: Int, eventId: Int, onPrepared: () -> Unit) {
+        viewModelScope.launch {
+            selectNovel(novelId)
+            val allEvents = repository.getEventsForNovelList(novelId)
+            val idx = allEvents.indexOfFirst { it.id == eventId }
+            if (idx >= 0) {
+                setCinemaEventIndex(idx)
+            }
+            onPrepared()
         }
     }
 

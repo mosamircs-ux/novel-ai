@@ -94,7 +94,12 @@ fun translate(key: String, isArabic: Boolean): String {
         "narrator" to "NARRATOR",
         "speaking_dialogs" to "Speaking Dialogues",
         "back" to "Back",
-        "unknown" to "Unknown"
+        "unknown" to "Unknown",
+        "all_novels" to "All Novels",
+        "favorites" to "Favorites & Bookmarks",
+        "no_favorites_found" to "No favorites saved yet. Tap the star on novels or scenes to build your collection!",
+        "favorite_chapters" to "Bookmarked Chapters & Scenes",
+        "favorite_novels" to "Favorite Novels"
     )
     val ar = mapOf(
         "app_title" to "نسيج الروايات الذكي",
@@ -124,7 +129,12 @@ fun translate(key: String, isArabic: Boolean): String {
         "narrator" to "الراوي",
         "speaking_dialogs" to "الحوارات الصوتيّة المتفاعلة",
         "back" to "الرجوع لخلف",
-        "unknown" to "غير معروف"
+        "unknown" to "غير معروف",
+        "all_novels" to "جميع الروايات",
+        "favorites" to "المفضلة والإشارات",
+        "no_favorites_found" to "لا يوجد مفضلات حالياً. اضغط على أيقونة النجمة في رواياتك أو مشاهدك لإضافتها!",
+        "favorite_chapters" to "الفصول والمشاهد المحفوظة",
+        "favorite_novels" to "الروايات المفضلة"
     )
     return if (isArabic) ar[key] ?: en[key] ?: key else en[key] ?: key
 }
@@ -401,6 +411,9 @@ fun NovelListScreen(
     onNovelSelected: (Int) -> Unit
 ) {
     val novelsList by viewModel.novels.collectAsState()
+    val favoriteNovels by viewModel.favoriteNovels.collectAsState()
+    val favoriteEvents by viewModel.favoriteEvents.collectAsState()
+    var selectedTab by remember { mutableStateOf(0) } // 0: All, 1: Favorites & Bookmarks
     var showUploadDialog by remember { mutableStateOf(false) }
     val isArabic by viewModel.isArabic.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
@@ -442,8 +455,10 @@ fun NovelListScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = CinemaGoldAccent,
-                    titleContentColor = Color.White
+                    containerColor = if (isDarkMode) Color(0xFF14121E) else Color(0xFF6750A4),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
         },
@@ -451,7 +466,7 @@ fun NovelListScreen(
             FloatingActionButton(
                 onClick = { showUploadDialog = true },
                 containerColor = CinemaGoldAccent,
-                contentColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .padding(16.dp)
                     .testTag("upload_fab"),
@@ -500,39 +515,253 @@ fun NovelListScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            if (novelsList.isEmpty()) {
+            // Filtering Tab-chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // All Novels Tab Chip
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selectedTab == 0) CinemaGoldAccent else CinemaCardBackground)
+                        .border(1.dp, Color(0xFFCAC4D0).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .clickable { selectedTab = 0 }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("tab_all_novels")
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        CircularProgressIndicator(color = CinemaGoldAccent)
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Book,
+                            contentDescription = null,
+                            tint = if (selectedTab == 0) Color.Black else Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = translate("brewing", isArabic),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.Medium
+                            text = translate("all_novels", isArabic),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == 0) Color.Black else Color.White
                         )
                     }
                 }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 80.dp)
+
+                // Favorites & Bookmarks Tab Chip
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selectedTab == 1) CinemaGoldAccent else CinemaCardBackground)
+                        .border(1.dp, Color(0xFFCAC4D0).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .clickable { selectedTab = 1 }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("tab_favorites")
                 ) {
-                    items(novelsList) { novel ->
-                        NovelItemCard(novel = novel, onClick = { onNovelSelected(novel.id) })
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = if (selectedTab == 1) Color.Black else Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = translate("favorites", isArabic),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == 1) Color.Black else Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (selectedTab == 0) {
+                if (novelsList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            CircularProgressIndicator(color = CinemaGoldAccent)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = translate("brewing", isArabic),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.fillMaxSize().testTag("novels_grid"),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
+                        items(novelsList) { novel ->
+                            NovelItemCard(
+                                novel = novel,
+                                onFavoriteToggle = { viewModel.toggleNovelFavorite(novel.id) },
+                                onClick = { onNovelSelected(novel.id) }
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Favorites Panel
+                if (favoriteNovels.isEmpty() && favoriteEvents.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = translate("no_favorites_found", isArabic),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(32.dp).testTag("no_favs_text")
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().testTag("favorites_list"),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
+                        if (favoriteNovels.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = translate("favorite_novels", isArabic),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = CinemaGoldAccent,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
+                            item {
+                                // Nested Row of favorite cards
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .testTag("favorite_novels_shelf"),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    favoriteNovels.forEach { novel ->
+                                        Box(modifier = Modifier.width(160.dp)) {
+                                            NovelItemCard(
+                                                novel = novel,
+                                                onFavoriteToggle = { viewModel.toggleNovelFavorite(novel.id) },
+                                                onClick = { onNovelSelected(novel.id) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (favoriteEvents.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = translate("favorite_chapters", isArabic),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = CinemaGoldAccent,
+                                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                                )
+                            }
+
+                            items(favoriteEvents) { e ->
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = CinemaSurface),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color(0xFFCAC4D0).copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable {
+                                            // Click on favorite chapter plays cinema directly starting from this novel
+                                            viewModel.selectNovelAndSetCinemaEvent(e.novelId, e.id) {
+                                                onNovelSelected(e.novelId)
+                                            }
+                                        }
+                                        .testTag("fav_chapter_card_${e.id}")
+                                ) {
+                                    Row(modifier = Modifier.fillMaxWidth()) {
+                                        AsyncImage(
+                                            model = e.imageUrl ?: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=600",
+                                            contentDescription = e.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(100.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                        )
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${translate("scene", isArabic)} ${e.chapter}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = CinemaGoldAccent
+                                                )
+                                                IconButton(
+                                                    onClick = { viewModel.toggleEventFavorite(e.id) },
+                                                    modifier = Modifier.size(24.dp).testTag("fav_chapter_unstar_${e.id}")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Star,
+                                                        contentDescription = "Unfavorite",
+                                                        tint = CinemaGoldAccent,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = e.title,
+                                                fontWeight = FontWeight.Black,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = e.description,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -549,7 +778,7 @@ fun NovelListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NovelItemCard(novel: Novel, onClick: () -> Unit) {
+fun NovelItemCard(novel: Novel, onFavoriteToggle: (() -> Unit)? = null, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier
@@ -580,6 +809,26 @@ fun NovelItemCard(novel: Novel, onClick: () -> Unit) {
                         drawRect(brush)
                     }
             )
+
+            // Favorite Button on Card
+            if (onFavoriteToggle != null) {
+                IconButton(
+                    onClick = onFavoriteToggle,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        .size(36.dp)
+                        .testTag("novel_fav_${novel.id}")
+                ) {
+                    Icon(
+                        imageVector = if (novel.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                        contentDescription = "Favorite",
+                        tint = if (novel.isFavorite) CinemaGoldAccent else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
 
             // Content Info Overlay
             Column(
@@ -811,7 +1060,7 @@ fun NovelUploadDialog(
                         OutlinedTextField(
                             value = title,
                             onValueChange = { title = it },
-                            label = { Text(translate("novel_title", isArabic), color = Color(0xFF49454F), fontWeight = FontWeight.Medium) },
+                            label = { Text(translate("novel_title", isArabic), color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("upload_title"),
@@ -831,7 +1080,7 @@ fun NovelUploadDialog(
                         OutlinedTextField(
                             value = author,
                             onValueChange = { author = it },
-                            label = { Text(translate("author_name", isArabic), color = Color(0xFF49454F), fontWeight = FontWeight.Medium) },
+                            label = { Text(translate("author_name", isArabic), color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium) },
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = CinemaGoldAccent,
@@ -849,7 +1098,7 @@ fun NovelUploadDialog(
                         OutlinedTextField(
                             value = textContent,
                             onValueChange = { textContent = it },
-                            label = { Text(translate("paste_text", isArabic), color = Color(0xFF49454F), fontWeight = FontWeight.Medium) },
+                            label = { Text(translate("paste_text", isArabic), color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(160.dp),
@@ -963,7 +1212,7 @@ fun PipelineSpinner(progressText: String) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = progressText,
-            color = Color(0xFF1D1B20),
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.bodyMedium
@@ -1018,7 +1267,12 @@ fun NovelDetailScreen(
                         Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CinemaGoldAccent)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDarkMode) Color(0xFF14121E) else Color(0xFF6750A4),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                )
             )
         },
         containerColor = CinemaDarkBackground
@@ -1273,7 +1527,7 @@ fun EventTimelineCard(
                     text = event.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
-                    color = Color(0xFF1D1B20),
+                    color = MaterialTheme.colorScheme.onSurface,
                     letterSpacing = (-0.3).sp
                 )
 
@@ -1292,14 +1546,14 @@ fun EventTimelineCard(
                         text = event.location,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF49454F)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 Text(
                     text = event.description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF49454F),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1603,6 +1857,7 @@ fun CharacterGalleryScreen(
     var selectedChar by remember { mutableStateOf<Character?>(null) }
 
     val isArabic by viewModel.isArabic.collectAsState()
+    val isDarkMode by viewModel.isDarkMode.collectAsState()
 
     Scaffold(
         topBar = {
@@ -1613,7 +1868,12 @@ fun CharacterGalleryScreen(
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CinemaGoldAccent)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDarkMode) Color(0xFF14121E) else Color(0xFF6750A4),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                )
             )
         },
         containerColor = CinemaDarkBackground
@@ -1668,7 +1928,7 @@ fun CharacterGalleryScreen(
                                         text = char.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Black,
-                                        color = Color(0xFF1D1B20),
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         letterSpacing = (-0.3).sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1744,7 +2004,7 @@ fun CharacterGalleryScreen(
                         text = char.name,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF1D1B20),
+                        color = MaterialTheme.colorScheme.onSurface,
                         letterSpacing = (-0.5).sp
                     )
 
@@ -1784,7 +2044,7 @@ fun CharacterGalleryScreen(
                         text = "Aliases: ${char.aliases.ifBlank { "None" }}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF49454F)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1825,7 +2085,7 @@ fun CharacterInfoSection(title: String, body: String) {
             text = body,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF1D1B20)
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -1842,6 +2102,7 @@ fun StoryboardScreen(
     val events by viewModel.currentEvents.collectAsState()
 
     val isArabic by viewModel.isArabic.collectAsState()
+    val isDarkMode by viewModel.isDarkMode.collectAsState()
 
     Scaffold(
         topBar = {
@@ -1852,7 +2113,12 @@ fun StoryboardScreen(
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CinemaGoldAccent)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDarkMode) Color(0xFF14121E) else Color(0xFF6750A4),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                )
             )
         },
         containerColor = CinemaDarkBackground
@@ -1906,13 +2172,27 @@ fun StoryboardScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "PANEL ${e.sequence}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = CinemaGoldAccent,
-                                            letterSpacing = 0.5.sp
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "PANEL ${e.sequence}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = CinemaGoldAccent,
+                                                letterSpacing = 0.5.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            IconButton(
+                                                onClick = { viewModel.toggleEventFavorite(e.id) },
+                                                modifier = Modifier.size(24.dp).testTag("bookmark_scene_${e.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (e.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                                    contentDescription = "Bookmark Scene",
+                                                    tint = if (e.isFavorite) CinemaGoldAccent else Color.LightGray,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
                                         Box(
                                             modifier = Modifier
                                                 .background(CinemaTealAccent, RoundedCornerShape(6.dp))
@@ -1934,7 +2214,7 @@ fun StoryboardScreen(
                                         text = e.title,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Black,
-                                        color = Color(0xFF1D1B20),
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         letterSpacing = (-0.3).sp
                                     )
 
@@ -1954,7 +2234,7 @@ fun StoryboardScreen(
                                         text = e.description,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF49454F)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
 
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -1983,7 +2263,7 @@ fun StoryboardScreen(
                                                 text = e.visualDescription,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = Color(0xFF1D1B20)
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }

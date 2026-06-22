@@ -19,6 +19,26 @@ class NovelRepository(
     private val dialogueDao: DialogueDao
 ) {
     val allNovels: Flow<List<Novel>> = novelDao.getAllNovels()
+    val favoriteNovels: Flow<List<Novel>> = novelDao.getFavoriteNovels()
+
+    fun getAllFavoriteEvents(): Flow<List<Event>> = eventDao.getAllFavoriteEvents()
+
+    fun getFavoriteEventsForNovel(novelId: Int): Flow<List<Event>> =
+        eventDao.getFavoriteEventsForNovel(novelId)
+
+    suspend fun toggleNovelFavorite(novelId: Int) {
+        val novel = novelDao.getNovelById(novelId)
+        if (novel != null) {
+            novelDao.updateNovel(novel.copy(isFavorite = !novel.isFavorite))
+        }
+    }
+
+    suspend fun toggleEventFavorite(eventId: Int) {
+        val event = eventDao.getEventById(eventId)
+        if (event != null) {
+            eventDao.updateEvent(event.copy(isFavorite = !event.isFavorite))
+        }
+    }
 
     fun getNovelByIdFlow(id: Int): Flow<Novel?> = novelDao.getNovelByIdFlow(id)
 
@@ -29,6 +49,9 @@ class NovelRepository(
 
     fun getEventsForNovel(novelId: Int): Flow<List<Event>> =
         eventDao.getEventsForNovel(novelId)
+
+    suspend fun getEventsForNovelList(novelId: Int): List<Event> =
+        eventDao.getEventsForNovelList(novelId)
 
     fun getDialoguesForEvent(eventId: Int): Flow<List<Dialogue>> =
         dialogueDao.getDialoguesForEvent(eventId)
